@@ -1,0 +1,11 @@
+.nvimlog
+.env
+
+__pycache__/
+*.py[cod]
+.ruff_cache/
+.pytest_cache/
+
+.venv/
+node_modules/
+dist/

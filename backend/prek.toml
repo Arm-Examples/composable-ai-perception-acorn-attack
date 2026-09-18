@@ -1,0 +1,13 @@
+minimum_prek_version = "0.4.13"
+default_stages = ["pre-commit"]
+
+[[repos]]
+repo = "local"
+
+[[repos.hooks]]
+id = "backend"
+name = "Backend format, lint and tests"
+language = "system"
+entry = "uv run --locked --isolated --only-group dev sh -c 'ruff format . && ruff check . && pytest'"
+pass_filenames = false
+always_run = true

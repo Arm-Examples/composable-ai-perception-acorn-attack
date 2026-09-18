@@ -1,0 +1,108 @@
+services:
+  messaging-service:
+    platform: linux/arm64
+    image: ghcr.io/arm-debug/cairn-messaging-service:feat-implement-python-deserialise
+    ports: ["127.0.0.1:6379:6379"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 2s
+      retries: 10
+
+  camera-service:
+    platform: linux/arm64
+    image: ghcr.io/arm-debug/cairn-camera-service:feat-implement-python-deserialise
+    user: root
+    entrypoint: ["/usr/local/bin/permissions-set-entrypint.sh"]
+    network_mode: host
+    group_add: [video]
+    cap_add: [SYS_NICE]
+    device_cgroup_rules: ["c *:* rw"]
+    environment:
+      XDG_RUNTIME_DIR: /run/pipewire
+      PWC_REDIS_ENABLED: 1
+      PWC_REDIS_HOST: 127.0.0.1
+      PWC_REDIS_PORT: 6379
+      PWC_REDIS_CHANNEL_EVENTS: camera.events
+    volumes:
+      - pipewire-runtime:/run/pipewire
+      - /dev:/dev
+      - /run/udev:/run/udev:ro
+    healthcheck:
+      test: ["CMD", "grpc_health_probe", "-addr=127.0.0.1:50051"]
+      interval: 5s
+      timeout: 6s
+      start_period: 15s
+      retries: 12
+    depends_on:
+      messaging-service:
+        condition: service_healthy
+
+  perception-service:
+    platform: linux/arm64
+    image: ghcr.io/arm-debug/cairn-perception-service:feat-implement-python-deserialise
+    network_mode: host
+    command: ["/app/.venv/bin/python", "-B", "-m", "perception_service", "--model-path", "/work/config/models", "--redis-url", "redis://127.0.0.1:6379/0"]
+    healthcheck:
+      test: ["CMD", "grpc_health_probe", "-addr=127.0.0.1:50053"]
+      interval: 5s
+      timeout: 6s
+      start_period: 15s
+      retries: 12
+    environment:
+      XDG_RUNTIME_DIR: /run/pipewire
+    volumes:
+      - pipewire-runtime:/run/pipewire:ro
+      - type: image
+        source: perception-example:local
+        target: /work/config/models
+        read_only: true
+        image:
+          subpath: models
+
+  perception-example:
+    platform: linux/arm64
+    image: perception-example:local
+    build:
+      context: .
+      args:
+        OPK_HF_DETECTION_MODEL: ${OPK_HF_DETECTION_MODEL:-Arm/Yolo-v11}
+      secrets: [artifactory_token, hf_token]
+    network_mode: host
+    environment:
+      CAMERA_ENDPOINT: http://127.0.0.1:50051
+      PERCEPTION_ENDPOINT: http://127.0.0.1:50053
+      REDIS_ENDPOINT: redis://127.0.0.1:6379/0
+      WORKFLOW_DURATION_SECONDS: 60
+    depends_on:
+      camera-service:
+        condition: service_healthy
+      perception-service:
+        condition: service_healthy
+    restart: "no"
+
+secrets:
+  artifactory_token:
+    environment: ARTIFACTORY_TOKEN
+  hf_token:
+    environment: HF_TOKEN
+
+volumes:
+  pipewire-runtime:
+
+x-topo:
+  name: Cairn Perception Acorn Attack Game
+  type: application
+  description: A browser based game played with a camera and an object detection inference model.
+  deployment_success_message: "View live logs: \nssh ${TOPO_TARGET} 'docker logs --follow perception-hello-world-perception-example-1'"
+  parameters:
+    OPK_HF_DETECTION_MODEL:
+      description: Hugging Face repository for the object-detection model. The game will be played with anything your model detects.
+      required: false
+      default: Arm/Yolo-v11
+      example: https://huggingface.co/Arm/Yolo-v11
+      hints:
+        meta.type: huggingface.repo-id
+        meta.compatibility: opk
+        model.task: object-detection
+        model.format: onnx
