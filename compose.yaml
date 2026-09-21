@@ -8,7 +8,6 @@ services:
       interval: 2s
       timeout: 2s
       retries: 10
-
   camera-service:
     platform: linux/arm64
     image: ghcr.io/arm-debug/cairn-camera-service:feat-implement-python-deserialise
@@ -37,7 +36,6 @@ services:
     depends_on:
       messaging-service:
         condition: service_healthy
-
   perception-service:
     platform: linux/arm64
     image: ghcr.io/arm-debug/cairn-perception-service:feat-implement-python-deserialise
@@ -59,14 +57,13 @@ services:
         read_only: true
         image:
           subpath: models
-
-  perception-example:
+  acorn-attack-web-server:
     platform: linux/arm64
-    image: perception-example:local
+    image: web-server:local
     build:
       context: .
       args:
-        OPK_HF_DETECTION_MODEL: ${OPK_HF_DETECTION_MODEL:-Arm/Yolo-v11}
+        OPK_HF_DETECTION_MODEL: Arm/UltraFace
       secrets: [artifactory_token, hf_token]
     network_mode: host
     environment:
@@ -80,13 +77,11 @@ services:
       perception-service:
         condition: service_healthy
     restart: "no"
-
 secrets:
   artifactory_token:
     environment: ARTIFACTORY_TOKEN
   hf_token:
     environment: HF_TOKEN
-
 volumes:
   pipewire-runtime:
 
@@ -94,13 +89,13 @@ x-topo:
   name: Cairn Perception Acorn Attack Game
   type: application
   description: A browser based game played with a camera and an object detection inference model.
-  deployment_success_message: "View live logs: \nssh ${TOPO_TARGET} 'docker logs --follow perception-hello-world-perception-example-1'"
+  deployment_success_message: "Play the game: http://${TOPO_TARGET}:8000"
   parameters:
     OPK_HF_DETECTION_MODEL:
       description: Hugging Face repository for the object-detection model. The game will be played with anything your model detects.
       required: false
-      default: Arm/Yolo-v11
-      example: https://huggingface.co/Arm/Yolo-v11
+      default: Arm/ultraface-rfb-320-onnx-raspberry
+      example: https://huggingface.co/Arm/ultraface-rfb-320-onnx-raspberry
       hints:
         meta.type: huggingface.repo-id
         meta.compatibility: opk

@@ -4,13 +4,13 @@ from pathlib import Path
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 
-import perception
+import detection
 from settings import CAMERA_RESOLUTION
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    async with perception.detection_stream() as detections:
+    async with detection.detection_stream() as detections:
         app.state.detections = detections
         yield
 

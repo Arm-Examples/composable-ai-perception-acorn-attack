@@ -19,7 +19,7 @@ def server(monkeypatch):
 
     monkeypatch.setitem(
         sys.modules,
-        "perception",
+        "detection",
         SimpleNamespace(detection_stream=detection_stream),
     )
     specification = importlib.util.spec_from_file_location(

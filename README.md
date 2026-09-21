@@ -10,43 +10,17 @@ This project must be deployed to a Linux Arm device, with a usb camera or Pi Cam
 Topo allows you to clone a repository to your development machine, and deploy it
 either locally or to another device (Such as a raspberry pi)
 
-Install [Topo](https://developer.arm.com/dev-docs/topo/introduction/install/)
+1. Install [Topo](https://developer.arm.com/dev-docs/topo/introduction/install/)
 
-`topo clone https://github.com/Arm-Examples/cairn-perception-acorn-attack`
+2. `topo clone https://github.com/Arm-Examples/cairn-perception-acorn-attack`
 
-Ensure your target is ready by running
-`topo health --target user@my-linux-device`
+3. Ensure your target is ready by running `topo health --target user@my-linux-device`
 
-Deploy to your target
-`topo deploy --target user@my-linux-device`
+4. Deploy to your target `topo deploy --target user@my-linux-device`
 
-## Pre-release
-The following steps only apply pre-release: 
+5. Enjoy the game! Topo will report the web url you can visit at the end of deployment.
 
-Copy the credential template and set both values. Set
-`OPK_HF_DETECTION_MODEL` to either `Arm/Yolo-v11` or its full Hugging Face URL
-to select the object-detection model.
-
-bash, sh, zsh, etc.
-```sh
-cp .env.example .env
-set -a; . ./.env; set +a
-```
-
-or for fish:
-```fish
-for line in (string match -rv '^\s*(#|$)' < .env)
-    set -l entry (string split -m1 = -- $line)
-    set -gx $entry[1] $entry[2]
-end
-```
-
-Authenticate Docker to the private service-image registry. `gh auth token`
-uses the active GitHub CLI account; its token needs `read:packages`.
-
-```sh
-gh auth token | docker login ghcr.io --username "$(gh api user --jq .login)" --password-stdin
-```
+6. Finished playing? Try a new model with: `topo configure`
 
 ## Development
 

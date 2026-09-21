@@ -1,5 +1,5 @@
 import type { Rectangle } from "../detection/types";
-import { intersects } from "./collision";
+import { intersectsCircularBounds } from "./collision";
 import {
   ACORN_SIZE,
   BOMB_SIZE,
@@ -13,18 +13,21 @@ import { COUNTDOWN_DURATION_MS, type GameMode } from "./game-state";
 import { startAcorn } from "./layout";
 import { GameRenderer } from "./renderer";
 import { findSpawnX } from "./spawn-position";
-import { spawnCountForDifficulty } from "./spawning";
+import {
+  bombChanceForElapsedMs,
+  bombSpeedMultiplierForElapsedMs,
+  spawnCountForDifficulty,
+} from "./spawning";
 import type { Sprites } from "./sprites";
 
 const FRAGMENT_SIZE = 86;
-const GRAVITY_PX_PER_SECOND_SQUARED = 650;
+const GRAVITY_PX_PER_SECOND_SQUARED = 1000;
 const BEGINNING_SPAWN_INTERVAL_MS = 1_000;
 const SPAWN_INTERVAL_ACCELERATION_MS = 50;
 const MIN_SPAWN_INTERVAL_MS = 200;
 const MAXIMUM_DIFFICULTY_AFTER_MS = 120_000;
 const START_HOVER_MS = 3_000;
 const MAX_LIVES = 3;
-const BOMB_CHANCE = 0.1;
 const SLASH_DURATION_MS = 250;
 const EXPLOSION_DURATION_MS = 600;
 
@@ -87,7 +90,7 @@ export class Game {
     viewport: Rectangle,
   ): void {
     const target = startAcorn(viewport);
-    this.hoverMs = saws.some((saw) => intersects(target, saw))
+    this.hoverMs = saws.some((saw) => intersectsCircularBounds(target, saw))
       ? this.hoverMs + elapsedMs
       : 0;
 
@@ -164,7 +167,8 @@ export class Game {
   }
 
   private spawnFallingItem(viewport: Rectangle): void {
-    const kind: FallingKind = Math.random() < BOMB_CHANCE ? "bomb" : "acorn";
+    const bombChance = bombChanceForElapsedMs(this.roundElapsedMs);
+    const kind: FallingKind = Math.random() < bombChance ? "bomb" : "acorn";
     const size = kind === "bomb" ? BOMB_SIZE : ACORN_SIZE;
     const x = findSpawnX(
       viewport.width,
@@ -177,13 +181,17 @@ export class Game {
     }
 
     const fall = calculateFall(x, viewport, size, Math.random());
+    const speedMultiplier =
+      kind === "bomb"
+        ? bombSpeedMultiplierForElapsedMs(this.roundElapsedMs)
+        : 1;
     this.fallingItems.push({
       kind,
       x,
       y: -size.height,
       ...size,
-      velocityX: fall.velocityX,
-      velocityY: fall.velocityY,
+      velocityX: fall.velocityX * speedMultiplier,
+      velocityY: fall.velocityY * speedMultiplier,
     });
   }
 
@@ -212,7 +220,7 @@ export class Game {
 
   private resolveHits(saws: Rectangle[], viewport: Rectangle): void {
     const hitItems = this.fallingItems.filter((item) =>
-      saws.some((saw) => intersects(item, saw)),
+      saws.some((saw) => intersectsCircularBounds(item, saw)),
     );
     const hitBomb = hitItems.find((item) => item.kind === "bomb");
 
@@ -236,7 +244,6 @@ export class Game {
       (item) => item.y > viewport.height,
     );
     removeAll(this.fallingItems, (item) => missedItems.includes(item));
-    this.loseHearts(missedItems.filter((item) => item.kind === "acorn").length);
     removeAll(
       this.fragments,
       (fragment) =>

@@ -110,6 +110,7 @@ def _decode_result(notification: Notification) -> dict[str, object]:
         for payload in result.payloads(BoxDetectionsT)
         for detection in payload.detections or []
     ]
+    print(f"detections: {detections}")
     return {"detections": detections}
 
 

@@ -5,8 +5,9 @@ export interface Rectangle {
   height: number;
 }
 
-interface Detection {
+export interface Detection {
   box: Rectangle | null;
+  confidence?: number | null;
 }
 
 export interface DetectionEvent {

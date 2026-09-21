@@ -1,6 +1,7 @@
-import type { DetectionEvent, Rectangle } from "./types";
+import type { Detection, DetectionEvent, Rectangle } from "./types";
 
 const MAX_DETECTION_AGE_MS = 250;
+const MINIMUM_DETECTION_CONFIDENCE = 0.5;
 const RECONNECT_DELAY_MS = 1_000;
 
 export class DetectionConnection {
@@ -38,9 +39,7 @@ export class DetectionConnection {
       if (detectionEvent === null) {
         return;
       }
-      this.boxes = detectionEvent.detections.flatMap(({ box }) =>
-        box === null ? [] : [box],
-      );
+      this.boxes = visibleDetectionBoxes(detectionEvent.detections);
       this.receivedAtMs = performance.now();
     });
     this.socket.addEventListener("close", () => {
@@ -70,12 +69,34 @@ function parseDetectionEvent(value: unknown): DetectionEvent | null {
       if (!isRecord(detection)) {
         return [];
       }
-      return [{ box: isRectangle(detection.box) ? detection.box : null }];
+      return [
+        {
+          box: isRectangle(detection.box) ? detection.box : null,
+          confidence:
+            typeof detection.confidence === "number"
+              ? detection.confidence
+              : undefined,
+        },
+      ];
     });
     return { detections };
   } catch {
     return null;
   }
+}
+
+export function visibleDetectionBoxes(detections: Detection[]): Rectangle[] {
+  return detections.flatMap(({ box, confidence }) => {
+    if (
+      box === null ||
+      (confidence !== null &&
+        confidence !== undefined &&
+        confidence < MINIMUM_DETECTION_CONFIDENCE)
+    ) {
+      return [];
+    }
+    return [box];
+  });
 }
 
 function isRectangle(value: unknown): value is Rectangle {

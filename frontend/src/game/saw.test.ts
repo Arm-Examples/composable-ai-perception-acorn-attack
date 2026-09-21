@@ -9,10 +9,10 @@ describe("pinSawToDetection", () => {
     const saw = pinSawToDetection(detection, 1_200);
 
     expect(saw).toEqual({
-      x: 80,
-      y: 160,
-      width: 120,
-      height: 120,
+      x: 110,
+      y: 190,
+      width: 60,
+      height: 60,
     });
   });
 
@@ -23,7 +23,7 @@ describe("pinSawToDetection", () => {
     const smallDetectionSaw = pinSawToDetection(smallDetection, 1_000);
     const largeDetectionSaw = pinSawToDetection(largeDetection, 1_000);
 
-    expect(smallDetectionSaw.width).toBe(100);
-    expect(largeDetectionSaw.width).toBe(100);
+    expect(smallDetectionSaw.width).toBe(50);
+    expect(largeDetectionSaw.width).toBe(50);
   });
 });

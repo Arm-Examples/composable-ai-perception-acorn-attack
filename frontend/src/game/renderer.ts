@@ -125,9 +125,9 @@ export class GameRenderer {
     const y = viewport.height * 0.72;
     this.context.drawImage(this.sprites.signWide, x, y, width, height);
     this.drawText(
-      `Last score: ${score}`,
+      `Last score:\n${score}`,
       x + width / 2,
-      y + height * 0.6,
+      y + height * 0.3,
       Math.min(28, width / 11),
     );
   }

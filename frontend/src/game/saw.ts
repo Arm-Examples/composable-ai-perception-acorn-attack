@@ -1,6 +1,6 @@
 import type { Rectangle } from "../detection/types";
 
-const SAW_VIEWPORT_WIDTH_RATIO = 0.1;
+const SAW_VIEWPORT_WIDTH_RATIO = 0.05;
 
 export function pinSawToDetection(
   detection: Rectangle,

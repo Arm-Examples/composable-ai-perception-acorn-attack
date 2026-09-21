@@ -10,6 +10,7 @@ COPY frontend/package.json frontend/package-lock.json frontend/tsconfig.json fro
 COPY frontend/public ./public
 COPY frontend/src ./src
 RUN npm ci && npm run build
+RUN chmod -R a+rX /app/frontend/dist
 
 FROM ${UV_IMAGE} AS builder
 
@@ -39,7 +40,7 @@ WORKDIR /app/backend
 COPY --from=builder /app/backend/.venv /app/backend/.venv
 COPY --from=builder /opt/uv/python /opt/uv/python
 COPY --from=frontend /app/frontend/dist /app/frontend/dist
-COPY backend/main.py backend/perception.py backend/settings.py ./
+COPY backend/detection.py backend/main.py backend/settings.py ./
 COPY --from=builder /models/ /models/
 RUN useradd --create-home --uid 10001 app
 
