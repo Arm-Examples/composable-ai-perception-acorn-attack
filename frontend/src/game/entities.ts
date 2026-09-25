@@ -6,7 +6,9 @@ export const BOMB_SIZE = { width: 80, height: 105 };
 export type FallingKind = "acorn" | "bomb";
 
 export interface FallingItem extends Rectangle {
+  angularVelocity: number;
   kind: FallingKind;
+  rotation: number;
   velocityX: number;
   velocityY: number;
 }

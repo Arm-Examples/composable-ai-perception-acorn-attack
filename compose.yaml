@@ -1,7 +1,7 @@
 services:
   messaging-service:
     platform: linux/arm64
-    image: ghcr.io/arm-debug/cairn-messaging-service:feat-implement-python-deserialise
+    image: ghcr.io/arm-debug/cairn-messaging-service:sha-61ea706b52609a8eb56efa1d0ad0af83d1f81cf4
     ports: ["127.0.0.1:6379:6379"]
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
@@ -10,9 +10,7 @@ services:
       retries: 10
   camera-service:
     platform: linux/arm64
-    image: ghcr.io/arm-debug/cairn-camera-service:feat-implement-python-deserialise
-    user: root
-    entrypoint: ["/usr/local/bin/permissions-set-entrypint.sh"]
+    image: ghcr.io/arm-debug/cairn-camera-service:sha-61ea706b52609a8eb56efa1d0ad0af83d1f81cf4
     network_mode: host
     group_add: [video]
     cap_add: [SYS_NICE]
@@ -38,7 +36,7 @@ services:
         condition: service_healthy
   perception-service:
     platform: linux/arm64
-    image: ghcr.io/arm-debug/cairn-perception-service:feat-implement-python-deserialise
+    image: ghcr.io/arm-debug/cairn-perception-service:sha-61ea706b52609a8eb56efa1d0ad0af83d1f81cf4
     network_mode: host
     command: ["/app/.venv/bin/python", "-B", "-m", "perception_service", "--model-path", "/work/config/models", "--redis-url", "redis://127.0.0.1:6379/0"]
     healthcheck:
@@ -89,7 +87,7 @@ x-topo:
   name: Cairn Perception Acorn Attack Game
   type: application
   description: A browser based game played with a camera and an object detection inference model.
-  deployment_success_message: "Play the game: http://${TOPO_TARGET}:8000"
+  deployment_success_message: "Play the game: http://${TOPO_TARGET_HOSTNAME}:8000"
   parameters:
     OPK_HF_DETECTION_MODEL:
       description: Hugging Face repository for the object-detection model. The game will be played with anything your model detects.

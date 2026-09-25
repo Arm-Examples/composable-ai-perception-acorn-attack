@@ -10,7 +10,7 @@ import {
 } from "./entities";
 import { calculateFall } from "./fall";
 import { COUNTDOWN_DURATION_MS, type GameMode } from "./game-state";
-import { startAcorn } from "./layout";
+import { integerScale, startAcorn } from "./layout";
 import { GameRenderer } from "./renderer";
 import { findSpawnX } from "./spawn-position";
 import {
@@ -26,10 +26,13 @@ const BEGINNING_SPAWN_INTERVAL_MS = 1_000;
 const SPAWN_INTERVAL_ACCELERATION_MS = 50;
 const MIN_SPAWN_INTERVAL_MS = 200;
 const MAXIMUM_DIFFICULTY_AFTER_MS = 120_000;
-const START_HOVER_MS = 3_000;
 const MAX_LIVES = 3;
 const SLASH_DURATION_MS = 250;
 const EXPLOSION_DURATION_MS = 600;
+const SLASH_SCALE = 2;
+const MAX_EXPLOSION_SCALE = 8;
+const MAX_TUMBLE_RADIANS = 0.3;
+const MAX_TUMBLE_RADIANS_PER_SECOND = 0.4;
 
 export class Game {
   private readonly fallingItems: FallingItem[] = [];
@@ -37,7 +40,6 @@ export class Game {
   private readonly effects: Effect[] = [];
   private readonly renderer: GameRenderer;
   private mode: GameMode = "home";
-  private hoverMs = 0;
   private countdownMs = 0;
   private roundElapsedMs = 0;
   private msUntilSpawn = 0;
@@ -55,11 +57,11 @@ export class Game {
 
   update(elapsedMs: number, saws: Rectangle[], viewport: Rectangle): void {
     if (this.mode === "home") {
-      this.updateHome(elapsedMs, saws, viewport);
+      this.updateHome(saws, viewport);
       return;
     }
     if (this.mode === "countdown") {
-      this.updateCountdown(elapsedMs);
+      this.updateCountdown(elapsedMs, viewport);
       return;
     }
 
@@ -84,25 +86,19 @@ export class Game {
     );
   }
 
-  private updateHome(
-    elapsedMs: number,
-    saws: Rectangle[],
-    viewport: Rectangle,
-  ): void {
+  private updateHome(saws: Rectangle[], viewport: Rectangle): void {
     const target = startAcorn(viewport);
-    this.hoverMs = saws.some((saw) => intersectsCircularBounds(target, saw))
-      ? this.hoverMs + elapsedMs
-      : 0;
-
-    if (this.hoverMs >= START_HOVER_MS) {
+    if (saws.some((saw) => intersectsCircularBounds(target, saw))) {
+      this.splitAcorn(target);
+      this.addSlash(target);
       this.mode = "countdown";
       this.countdownMs = 0;
-      this.hoverMs = 0;
     }
   }
 
-  private updateCountdown(elapsedMs: number): void {
+  private updateCountdown(elapsedMs: number, viewport: Rectangle): void {
     this.countdownMs += elapsedMs;
+    this.updateDebris(elapsedMs, viewport);
     if (this.countdownMs >= COUNTDOWN_DURATION_MS) {
       this.startRound();
     }
@@ -113,12 +109,10 @@ export class Game {
     saws: Rectangle[],
     viewport: Rectangle,
   ): void {
-    const elapsedSeconds = elapsedMs / 1_000;
     this.roundElapsedMs += elapsedMs;
     this.updateSpawning(elapsedMs, viewport);
-    this.moveFallingItems(elapsedSeconds);
-    this.moveFragments(elapsedSeconds);
-    this.updateEffects(elapsedMs);
+    this.moveFallingItems(elapsedMs / 1_000);
+    this.updateDebris(elapsedMs, viewport);
     this.resolveHits(saws, viewport);
 
     if (this.mode === "running") {
@@ -134,14 +128,11 @@ export class Game {
     this.msUntilSpawn = 0;
     this.currentSpawnIntervalMs = BEGINNING_SPAWN_INTERVAL_MS;
     this.fallingItems.length = 0;
-    this.fragments.length = 0;
-    this.effects.length = 0;
   }
 
   private endRound(): void {
     this.lastScore = this.score;
     this.mode = "home";
-    this.hoverMs = 0;
     this.fallingItems.length = 0;
     this.fragments.length = 0;
     this.effects.length = 0;
@@ -190,6 +181,8 @@ export class Game {
       x,
       y: -size.height,
       ...size,
+      rotation: (Math.random() * 2 - 1) * MAX_TUMBLE_RADIANS,
+      angularVelocity: (Math.random() * 2 - 1) * MAX_TUMBLE_RADIANS_PER_SECOND,
       velocityX: fall.velocityX * speedMultiplier,
       velocityY: fall.velocityY * speedMultiplier,
     });
@@ -199,7 +192,20 @@ export class Game {
     for (const item of this.fallingItems) {
       item.x += item.velocityX * elapsedSeconds;
       item.y += item.velocityY * elapsedSeconds;
+      item.rotation += item.angularVelocity * elapsedSeconds;
     }
+  }
+
+  private updateDebris(elapsedMs: number, viewport: Rectangle): void {
+    this.moveFragments(elapsedMs / 1_000);
+    this.updateEffects(elapsedMs);
+    removeAll(
+      this.fragments,
+      (fragment) =>
+        fragment.y > viewport.height ||
+        fragment.x + fragment.width < 0 ||
+        fragment.x > viewport.width,
+    );
   }
 
   private moveFragments(elapsedSeconds: number): void {
@@ -244,13 +250,6 @@ export class Game {
       (item) => item.y > viewport.height,
     );
     removeAll(this.fallingItems, (item) => missedItems.includes(item));
-    removeAll(
-      this.fragments,
-      (fragment) =>
-        fragment.y > viewport.height ||
-        fragment.x + fragment.width < 0 ||
-        fragment.x > viewport.width,
-    );
   }
 
   private loseHearts(count: number): void {
@@ -263,7 +262,7 @@ export class Game {
     }
   }
 
-  private splitAcorn(acorn: FallingItem): void {
+  private splitAcorn(acorn: Rectangle): void {
     const x = acorn.x + (acorn.width - FRAGMENT_SIZE) / 2;
     const y = acorn.y + (acorn.height - FRAGMENT_SIZE) / 2;
     this.fragments.push(
@@ -292,10 +291,9 @@ export class Game {
     );
   }
 
-  private addSlash(item: FallingItem): void {
-    const width = 120;
-    const height =
-      width * (this.sprites.slash.height / this.sprites.slash.width);
+  private addSlash(item: Rectangle): void {
+    const width = this.sprites.slash.width * SLASH_SCALE;
+    const height = this.sprites.slash.height * SLASH_SCALE;
     this.effects.push({
       x: item.x + item.width / 2 - width / 2,
       y: item.y + item.height / 2 - height / 2,
@@ -307,13 +305,20 @@ export class Game {
   }
 
   private addExplosion(item: FallingItem, viewport: Rectangle): void {
-    const size = Math.min(viewport.width * 0.35, 380);
+    const sprite = this.sprites.explosion;
+    const scale = integerScale(
+      Math.min(viewport.width * 0.35, 380),
+      sprite.width,
+      MAX_EXPLOSION_SCALE,
+    );
+    const width = sprite.width * scale;
+    const height = sprite.height * scale;
     this.effects.push({
-      x: item.x + item.width / 2 - size / 2,
-      y: item.y + item.height / 2 - size / 2,
-      width: size,
-      height: size,
-      sprite: this.sprites.explosion,
+      x: item.x + item.width / 2 - width / 2,
+      y: item.y + item.height / 2 - height / 2,
+      width,
+      height,
+      sprite,
       remainingMs: EXPLOSION_DURATION_MS,
     });
   }

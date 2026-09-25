@@ -8,3 +8,11 @@ export function startAcorn(viewport: Rectangle): Rectangle {
     ...ACORN_SIZE,
   };
 }
+
+export function integerScale(
+  availablePx: number,
+  nativePx: number,
+  maxScale: number,
+): number {
+  return Math.max(1, Math.min(Math.floor(availablePx / nativePx), maxScale));
+}

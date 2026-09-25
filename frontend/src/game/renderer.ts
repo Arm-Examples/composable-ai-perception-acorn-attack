@@ -1,11 +1,28 @@
 import type { Rectangle } from "../detection/types";
 import type { Effect, FallingItem, Fragment } from "./entities";
 import { countdownLabel, type GameMode } from "./game-state";
-import { startAcorn } from "./layout";
+import { integerScale, startAcorn } from "./layout";
 import type { Sprites } from "./sprites";
+import {
+  FONT_PIXELS_PER_EM,
+  fitPixelSize,
+  layoutText,
+  type Point,
+} from "./text-layout";
 
 const MAX_LIVES = 3;
 const SAW_ROTATION_RADIANS_PER_MS = 0.002;
+const MAX_LOGO_SCALE = 4;
+const MAX_SIGN_SCALE = 4;
+const MAX_HEADLINE_PIXEL_SIZE = 4;
+const MAX_COUNTDOWN_PIXEL_SIZE = 13;
+const HEART_GAP_PX = 6;
+const SIGN_MARGIN_PX = 16;
+
+// Wooden panel inside each sign sprite, in the sprite's own pixels.
+const SIGN_PANEL: Rectangle = { x: 7, y: 3, width: 44, height: 28 };
+const WIDE_SIGN_PANEL: Rectangle = { x: 6, y: 5, width: 61, height: 26 };
+const SIGN_PANEL_PADDING_PX = 3;
 
 export interface GameView {
   countdownMs: number;
@@ -17,6 +34,11 @@ export interface GameView {
   mode: GameMode;
   roundElapsedMs: number;
   score: number;
+}
+
+interface RotatedSprite extends Rectangle {
+  rotation: number;
+  sprite: HTMLImageElement;
 }
 
 export class GameRenderer {
@@ -31,9 +53,11 @@ export class GameRenderer {
 
     if (view.mode === "running") {
       this.renderFallingItems(view.fallingItems);
-      this.renderFragments(view.fragments);
-      this.renderEffects(view.effects);
     }
+    for (const fragment of view.fragments) {
+      this.drawRotated(fragment);
+    }
+    this.renderEffects(view.effects);
 
     this.renderTrees(viewport);
 
@@ -84,23 +108,28 @@ export class GameRenderer {
   }
 
   private renderHome(lastScore: number | null, viewport: Rectangle): void {
-    const logoWidth = Math.min(viewport.width * 0.42, 420);
-    const logoHeight =
-      logoWidth * (this.sprites.logo.height / this.sprites.logo.width);
-    const logoY = Math.max(24, viewport.height * 0.08);
-    this.context.drawImage(
-      this.sprites.logo,
-      (viewport.width - logoWidth) / 2,
+    const logo = this.sprites.logo;
+    const logoScale = Math.min(
+      integerScale(viewport.width * 0.42, logo.width, MAX_LOGO_SCALE),
+      integerScale(viewport.height * 0.18, logo.height, MAX_LOGO_SCALE),
+    );
+    const logoY = Math.round(Math.max(24, viewport.height * 0.08));
+    const logoHeight = logo.height * logoScale;
+    this.drawScaled(
+      logo,
+      Math.round((viewport.width - logo.width * logoScale) / 2),
       logoY,
-      logoWidth,
-      logoHeight,
+      logoScale,
     );
 
     this.drawText(
-      "Chop this acorn to begin",
-      viewport.width / 2,
-      logoY + logoHeight + 52,
-      Math.min(36, Math.max(20, viewport.width / 32)),
+      ["Chop this acorn to begin"],
+      { x: viewport.width / 2, y: logoY + logoHeight + 52 },
+      integerScale(
+        viewport.width / 32,
+        FONT_PIXELS_PER_EM,
+        MAX_HEADLINE_PIXEL_SIZE,
+      ),
     );
 
     const target = startAcorn(viewport);
@@ -118,117 +147,104 @@ export class GameRenderer {
   }
 
   private renderLastScore(score: number, viewport: Rectangle): void {
-    const width = Math.min(296, viewport.width * 0.45);
-    const height =
-      width * (this.sprites.signWide.height / this.sprites.signWide.width);
-    const x = (viewport.width - width) / 2;
-    const y = viewport.height * 0.72;
-    this.context.drawImage(this.sprites.signWide, x, y, width, height);
-    this.drawText(
-      `Last score:\n${score}`,
-      x + width / 2,
-      y + height * 0.3,
-      Math.min(28, width / 11),
+    const sign = this.sprites.signWide;
+    const scale = integerScale(
+      viewport.width * 0.45,
+      sign.width,
+      MAX_SIGN_SCALE,
     );
+    const panel = this.drawSign(
+      sign,
+      WIDE_SIGN_PANEL,
+      Math.round((viewport.width - sign.width * scale) / 2),
+      Math.round(
+        Math.min(
+          viewport.height * 0.72,
+          viewport.height - sign.height * scale - SIGN_MARGIN_PX,
+        ),
+      ),
+      scale,
+    );
+    this.drawTextInPanel(["Last score", String(score)], panel, scale, scale);
   }
 
   private renderCountdown(elapsedMs: number, viewport: Rectangle): void {
     this.drawText(
-      countdownLabel(elapsedMs),
-      viewport.width / 2,
-      viewport.height / 2,
-      Math.min(120, viewport.width / 6),
+      [countdownLabel(elapsedMs)],
+      { x: viewport.width / 2, y: viewport.height / 2 },
+      integerScale(
+        viewport.width / 6,
+        FONT_PIXELS_PER_EM,
+        MAX_COUNTDOWN_PIXEL_SIZE,
+      ),
     );
   }
 
   private renderHud(lives: number, score: number, viewport: Rectangle): void {
-    const wideWidth = Math.min(296, viewport.width * 0.38);
-    const wideHeight =
-      wideWidth * (this.sprites.signWide.height / this.sprites.signWide.width);
-    const signWidth = Math.min(232, viewport.width * 0.3);
-    const signHeight =
-      signWidth * (this.sprites.sign.height / this.sprites.sign.width);
-    const margin = 16;
-    const wideY = viewport.height - wideHeight - margin;
-    const signX = viewport.width - signWidth - margin;
-    const signY = viewport.height - signHeight - margin;
-
-    this.context.drawImage(
-      this.sprites.signWide,
-      margin,
-      wideY,
-      wideWidth,
-      wideHeight,
+    const wideSign = this.sprites.signWide;
+    const sign = this.sprites.sign;
+    const scale = integerScale(
+      viewport.width * 0.38,
+      wideSign.width,
+      MAX_SIGN_SCALE,
     );
-    this.renderHearts(lives, margin, wideY, wideWidth, wideHeight);
-
-    this.context.drawImage(
-      this.sprites.sign,
-      signX,
-      signY,
-      signWidth,
-      signHeight,
+    const livesPanel = this.drawSign(
+      wideSign,
+      WIDE_SIGN_PANEL,
+      SIGN_MARGIN_PX,
+      viewport.height - wideSign.height * scale - SIGN_MARGIN_PX,
+      scale,
     );
-    this.drawText(
-      String(score),
-      signX + signWidth / 2,
-      signY + signHeight * 0.62,
-      Math.min(48, signWidth / 3.5),
+    this.renderHearts(lives, livesPanel);
+
+    const scorePanel = this.drawSign(
+      sign,
+      SIGN_PANEL,
+      viewport.width - sign.width * scale - SIGN_MARGIN_PX,
+      viewport.height - sign.height * scale - SIGN_MARGIN_PX,
+      scale,
+    );
+    this.drawTextInPanel(
+      [String(score)],
+      scorePanel,
+      scale,
+      Math.floor(scale * 1.5),
     );
   }
 
-  private renderHearts(
-    lives: number,
-    signX: number,
-    signY: number,
-    signWidth: number,
-    signHeight: number,
-  ): void {
-    const heartHeight = signHeight * 0.38;
-    const heartWidth =
-      heartHeight * (this.sprites.heart.width / this.sprites.heart.height);
-    const gap = heartWidth * 0.3;
-    const totalWidth = heartWidth * MAX_LIVES + gap * (MAX_LIVES - 1);
-    const startX = signX + (signWidth - totalWidth) / 2;
-    const y = signY + (signHeight - heartHeight) / 2;
+  private renderHearts(lives: number, panel: Rectangle): void {
+    const heart = this.sprites.heart;
+    const rowWidth = heart.width * MAX_LIVES + HEART_GAP_PX * (MAX_LIVES - 1);
+    const scale = Math.max(
+      1,
+      Math.floor(
+        Math.min(
+          (panel.width * 0.85) / rowWidth,
+          (panel.height * 0.7) / heart.height,
+        ),
+      ),
+    );
+    const startX = Math.round(panel.x + (panel.width - rowWidth * scale) / 2);
+    const y = Math.round(panel.y + (panel.height - heart.height * scale) / 2);
 
     for (let index = 0; index < MAX_LIVES; index += 1) {
-      const sprite =
-        index < lives ? this.sprites.heart : this.sprites.brokenHeart;
-      this.context.drawImage(
+      const sprite = index < lives ? heart : this.sprites.brokenHeart;
+      this.drawScaled(
         sprite,
-        startX + index * (heartWidth + gap),
+        startX + index * (heart.width + HEART_GAP_PX) * scale,
         y,
-        heartWidth,
-        heartHeight,
+        scale,
       );
     }
   }
 
   private renderFallingItems(items: readonly FallingItem[]): void {
     for (const item of items) {
-      const sprite =
-        item.kind === "bomb" ? this.sprites.bombPinecone : this.sprites.acorn;
-      this.context.drawImage(sprite, item.x, item.y, item.width, item.height);
-    }
-  }
-
-  private renderFragments(fragments: readonly Fragment[]): void {
-    for (const fragment of fragments) {
-      this.context.save();
-      this.context.translate(
-        fragment.x + fragment.width / 2,
-        fragment.y + fragment.height / 2,
-      );
-      this.context.rotate(fragment.rotation);
-      this.context.drawImage(
-        fragment.sprite,
-        -fragment.width / 2,
-        -fragment.height / 2,
-        fragment.width,
-        fragment.height,
-      );
-      this.context.restore();
+      this.drawRotated({
+        ...item,
+        sprite:
+          item.kind === "bomb" ? this.sprites.bombPinecone : this.sprites.acorn,
+      });
     }
   }
 
@@ -252,31 +268,94 @@ export class GameRenderer {
     const rotation =
       mode === "running" ? roundElapsedMs * SAW_ROTATION_RADIANS_PER_MS : 0;
     for (const saw of saws) {
-      this.context.save();
-      this.context.translate(saw.x + saw.width / 2, saw.y + saw.height / 2);
-      this.context.rotate(rotation);
-      this.context.drawImage(
-        this.sprites.saw,
-        -saw.width / 2,
-        -saw.height / 2,
-        saw.width,
-        saw.height,
-      );
-      this.context.restore();
+      this.drawRotated({ ...saw, rotation, sprite: this.sprites.saw });
     }
   }
 
-  private drawText(text: string, x: number, y: number, fontSize: number): void {
+  private drawSign(
+    sprite: HTMLImageElement,
+    panel: Rectangle,
+    x: number,
+    y: number,
+    scale: number,
+  ): Rectangle {
+    this.drawScaled(sprite, x, y, scale);
+    return {
+      x: x + panel.x * scale,
+      y: y + panel.y * scale,
+      width: panel.width * scale,
+      height: panel.height * scale,
+    };
+  }
+
+  private drawScaled(
+    sprite: HTMLImageElement,
+    x: number,
+    y: number,
+    scale: number,
+  ): void {
+    this.context.drawImage(
+      sprite,
+      x,
+      y,
+      sprite.width * scale,
+      sprite.height * scale,
+    );
+  }
+
+  private drawRotated(item: RotatedSprite): void {
     this.context.save();
-    this.context.font = `${fontSize}px "Carrie Micro"`;
-    this.context.textAlign = "center";
-    this.context.textBaseline = "middle";
-    this.context.lineJoin = "round";
-    this.context.lineWidth = Math.max(3, fontSize * 0.12);
+    this.context.translate(item.x + item.width / 2, item.y + item.height / 2);
+    this.context.rotate(item.rotation);
+    this.context.drawImage(
+      item.sprite,
+      -item.width / 2,
+      -item.height / 2,
+      item.width,
+      item.height,
+    );
+    this.context.restore();
+  }
+
+  private drawTextInPanel(
+    lines: readonly string[],
+    panel: Rectangle,
+    signScale: number,
+    maxPixelSize: number,
+  ): void {
+    const padding = SIGN_PANEL_PADDING_PX * signScale;
+    const pixelSize = fitPixelSize(
+      lines,
+      { width: panel.width - padding * 2, height: panel.height - padding * 2 },
+      maxPixelSize,
+    );
+    this.drawText(
+      lines,
+      { x: panel.x + panel.width / 2, y: panel.y + panel.height / 2 },
+      pixelSize,
+    );
+  }
+
+  private drawText(
+    lines: readonly string[],
+    centre: Point,
+    pixelSize: number,
+  ): void {
+    const block = layoutText(lines, centre, pixelSize);
+    this.context.save();
+    this.context.font = `${block.fontSize}px "Carrie Micro"`;
+    this.context.textAlign = "left";
+    this.context.textBaseline = "alphabetic";
+    this.context.lineJoin = "miter";
+    this.context.lineWidth = Math.max(2, pixelSize);
     this.context.strokeStyle = "#30152f";
     this.context.fillStyle = "#fff1ce";
-    this.context.strokeText(text, x, y);
-    this.context.fillText(text, x, y);
+    for (const line of block.lines) {
+      this.context.strokeText(line.text, line.x, line.baselineY);
+    }
+    for (const line of block.lines) {
+      this.context.fillText(line.text, line.x, line.baselineY);
+    }
     this.context.restore();
   }
 }
