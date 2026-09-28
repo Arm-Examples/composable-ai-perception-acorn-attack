@@ -2,5 +2,6 @@ import os
 
 CAMERA_ENDPOINT = os.environ.get("CAMERA_ENDPOINT", "http://127.0.0.1:50051")
 CAMERA_RESOLUTION = (640, 480)
+DETECTION_LABEL = os.environ.get("DETECTION_LABEL")
 PERCEPTION_ENDPOINT = os.environ.get("PERCEPTION_ENDPOINT", "http://127.0.0.1:50053")
 REDIS_ENDPOINT = os.environ.get("REDIS_ENDPOINT", "redis://127.0.0.1:6379/0")

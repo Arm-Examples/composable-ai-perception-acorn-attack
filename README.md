@@ -22,6 +22,8 @@ either locally or to another device (Such as a raspberry pi)
 
 6. Finished playing? Try a new model with: `topo configure`
 
+7. Model detects lots of things? Play with just one of them, such as chairs: `topo configure DETECTION_LABEL=chair`
+
 ## Development
 
 Requires Node.js 22.22.3, uv and Git. Run from the repository root.
@@ -48,7 +50,7 @@ and WebSocket share port **8000**. Rebuild and refresh after frontend changes.
 Requires Linux/AArch64, a camera and Docker Compose.
 
 ```sh
-docker compose build perception-example
+docker compose build acorn-attack-web-server
 docker compose up -d --wait messaging-service camera-service perception-service
 
 uv sync --project backend --locked

@@ -13,9 +13,11 @@ from cairn_sdk.perception import (
     PerceptionWorkflow,
 )
 
+from labels import keep_label
 from settings import (
     CAMERA_ENDPOINT,
     CAMERA_RESOLUTION,
+    DETECTION_LABEL,
     PERCEPTION_ENDPOINT,
     REDIS_ENDPOINT,
 )
@@ -117,7 +119,7 @@ def _decode_result(notification: Notification) -> dict[str, object]:
         for detection in payload.detections or []
     ]
     print(f"detections: {detections}")
-    return {"detections": detections}
+    return {"detections": keep_label(detections, DETECTION_LABEL)}
 
 
 def _text(value: str | bytes | None) -> str | None:

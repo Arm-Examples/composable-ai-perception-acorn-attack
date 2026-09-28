@@ -1,3 +1,6 @@
+# Built by acorn-attack-web-server; perception-service mounts its /models.
+x-model-image: &model-image acorn-attack-web-server:local
+
 services:
   messaging-service:
     platform: linux/arm64
@@ -50,18 +53,19 @@ services:
     volumes:
       - pipewire-runtime:/run/pipewire:ro
       - type: image
-        source: perception-example:local
+        source: *model-image
         target: /work/config/models
         read_only: true
         image:
           subpath: models
   acorn-attack-web-server:
     platform: linux/arm64
-    image: web-server:local
+    image: *model-image
     build:
       context: .
       args:
         OPK_HF_DETECTION_MODEL: Arm/UltraFace
+        DETECTION_LABEL: ""
       secrets: [artifactory_token, hf_token]
     network_mode: host
     environment:
@@ -99,3 +103,7 @@ x-topo:
         meta.compatibility: opk
         model.task: object-detection
         model.format: onnx
+    DETECTION_LABEL:
+      description: Only play with detections of this label, such as person or chair. Leave empty to use every detection.
+      required: false
+      example: chair

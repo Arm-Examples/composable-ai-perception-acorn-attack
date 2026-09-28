@@ -35,12 +35,15 @@ RUN --mount=type=secret,id=artifactory_token,required=true \
 
 FROM ${UV_IMAGE} AS runtime
 
+ARG DETECTION_LABEL=""
+ENV DETECTION_LABEL=${DETECTION_LABEL}
+
 WORKDIR /app/backend
 
 COPY --from=builder /app/backend/.venv /app/backend/.venv
 COPY --from=builder /opt/uv/python /opt/uv/python
 COPY --from=frontend /app/frontend/dist /app/frontend/dist
-COPY backend/detection.py backend/main.py backend/settings.py ./
+COPY backend/detection.py backend/labels.py backend/main.py backend/settings.py ./
 COPY --from=builder /models/ /models/
 RUN useradd --create-home --uid 10001 app
 
