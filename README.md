@@ -2,7 +2,7 @@
 
 This example shows how you can use the Cairn SDK to create a vision inference model powered browser game.
 With Cairn, the complex work of configuring cameras, setting up gstreamer pipelines and messaging is all handled for you.
-You can see how we configured it in this project, in backend/perception.
+You can see how we configured it in `backend/detection.py`.
 
 ## Quick Deploy
 This project must be deployed to a Linux Arm device, with a usb camera or Pi Camera.
@@ -26,7 +26,7 @@ either locally or to another device (Such as a raspberry pi)
 
 ## Development
 
-Requires Node.js 22.22.3, uv and Git. Run from the repository root.
+Requires Node.js 22.22.3, uv 0.13.7 or later, Python 3.13.17 or later (below 3.14), and Git. Run from the repository root.
 
 ```sh
 uv tool install prek==0.4.13

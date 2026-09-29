@@ -1,11 +1,10 @@
 [project]
 name = "cairn-perception-acorn-attack"
 version = "0.0.0"
-requires-python = ">=3.12,<3.13"
+requires-python = ">=3.13.17,<3.14"
 dependencies = [
-    "cairn-sdk-lib==0.0.1",
+    "arm-cairn==0.0.2",
     "fastapi==0.141.1",
-    "protobuf==7.35.1",
     "uvicorn[standard]==0.53.0",
 ]
 
@@ -18,7 +17,7 @@ dev = [
 ]
 
 [tool.ruff]
-target-version = "py312"
+target-version = "py313"
 
 [tool.ruff.lint]
 extend-select = ["I", "UP", "B"]
@@ -27,10 +26,3 @@ extend-select = ["I", "UP", "B"]
 testpaths = ["tests"]
 pythonpath = ["."]
 
-[tool.uv.sources]
-cairn-sdk-lib = { url = "https://artifactory.arm.com/artifactory/api/pypi/edge-ai-tooling.pypi/cairn-sdk-lib/0.0.1/cairn_sdk_lib-0.0.1-cp312-abi3-linux_aarch64.whl" }
-
-[[tool.uv.index]]
-name = "edge-ai-tooling"
-url = "https://artifactory.arm.com/artifactory/api/pypi/edge-ai-tooling.pypi/simple"
-explicit = true

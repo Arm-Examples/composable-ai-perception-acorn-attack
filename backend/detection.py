@@ -3,8 +3,8 @@ import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
-from cairn_sdk import CameraService, Notification, NotificationService
-from cairn_sdk.perception import (
+from cairn import CameraService, Notification, NotificationService
+from cairn.perception import (
     BoxDetections,
     PerceptionResult,
     PerceptionResultError,
@@ -14,13 +14,7 @@ from cairn_sdk.perception import (
 )
 
 from labels import keep_label
-from settings import (
-    CAMERA_ENDPOINT,
-    CAMERA_RESOLUTION,
-    DETECTION_LABEL,
-    PERCEPTION_ENDPOINT,
-    REDIS_ENDPOINT,
-)
+from settings import CAMERA_RESOLUTION, DETECTION_LABEL
 
 LOGGER = logging.getLogger(__name__)
 
@@ -58,7 +52,7 @@ class DetectionStream:
 @asynccontextmanager
 async def detection_stream() -> AsyncIterator[DetectionStream]:
     session, notification_channel = await _deploy_inference_pipeline()
-    async with NotificationService(REDIS_ENDPOINT) as notifications:
+    async with NotificationService() as notifications:
         try:
             yield DetectionStream(notifications, notification_channel)
         finally:
@@ -66,7 +60,7 @@ async def detection_stream() -> AsyncIterator[DetectionStream]:
 
 
 async def _get_camera_configuration():
-    cameras = CameraService(CAMERA_ENDPOINT).list_cameras()
+    cameras = CameraService().list_cameras()
     for camera in cameras:
         for pixel_format in ("RGB", "YUY2"):
             stream_configurations = await camera.get_stream_configurations(
@@ -83,7 +77,7 @@ async def _get_camera_configuration():
 
 async def _deploy_inference_pipeline() -> tuple[PerceptionSession, str]:
     camera = await _get_camera_configuration()
-    service = await PerceptionService.connect(PERCEPTION_ENDPOINT)
+    service = await PerceptionService.connect()
 
     workflow = PerceptionWorkflow("detection-workflow", camera)
     _ = workflow.infer("objects", "detection_model")
