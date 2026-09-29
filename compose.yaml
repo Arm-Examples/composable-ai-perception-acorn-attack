@@ -4,7 +4,7 @@ x-model-image: &model-image acorn-attack-web-server:local
 services:
   messaging-service:
     platform: linux/arm64
-    image: ghcr.io/arm-debug/cairn-messaging-service:sha-61ea706b52609a8eb56efa1d0ad0af83d1f81cf4
+    image: ghcr.io/arm-debug/cairn-messaging-service:sha-e9c47f381d49da6832afeedd39f8c61edb6b9c18
     ports: ["127.0.0.1:6379:6379"]
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
@@ -13,7 +13,7 @@ services:
       retries: 10
   camera-service:
     platform: linux/arm64
-    image: ghcr.io/arm-debug/cairn-camera-service:sha-61ea706b52609a8eb56efa1d0ad0af83d1f81cf4
+    image: ghcr.io/arm-debug/cairn-camera-service:sha-e9c47f381d49da6832afeedd39f8c61edb6b9c18
     network_mode: host
     group_add: [video]
     cap_add: [SYS_NICE]
@@ -39,7 +39,7 @@ services:
         condition: service_healthy
   perception-service:
     platform: linux/arm64
-    image: ghcr.io/arm-debug/cairn-perception-service:sha-61ea706b52609a8eb56efa1d0ad0af83d1f81cf4
+    image: ghcr.io/arm-debug/cairn-perception-service:sha-e9c47f381d49da6832afeedd39f8c61edb6b9c18
     network_mode: host
     command: ["/app/.venv/bin/python", "-B", "-m", "perception_service", "--model-path", "/work/config/models", "--redis-url", "redis://127.0.0.1:6379/0"]
     healthcheck:
@@ -64,7 +64,7 @@ services:
     build:
       context: .
       args:
-        OPK_HF_DETECTION_MODEL: Arm/UltraFace
+        OPK_HF_DETECTION_MODEL: Arm/ultraface-rfb-320-onnx-raspberry
         DETECTION_LABEL: ""
       secrets: [artifactory_token, hf_token]
     network_mode: host

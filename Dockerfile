@@ -14,7 +14,7 @@ RUN chmod -R a+rX /app/frontend/dist
 
 FROM ${UV_IMAGE} AS builder
 
-ARG OPK_HF_DETECTION_MODEL=Arm/Yolo-v11
+ARG OPK_HF_DETECTION_MODEL=Arm/ultraface-rfb-320-onnx-raspberry
 ENV UV_PYTHON_INSTALL_DIR=/opt/uv/python
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl \
     && rm -rf /var/lib/apt/lists/*
