@@ -1,0 +1,51 @@
+services:
+  camera-service:
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          grpc_health_probe -addr=127.0.0.1:50051 &&
+          pw-dump -N | grep -Fq '"node.name": "gstreamer-test-source"'
+  smoke-camera:
+    platform: linux/arm64
+    image: ${SMOKE_PERCEPTION_IMAGE:?Use the cloned perception-service image}
+    network_mode: host
+    environment:
+      XDG_RUNTIME_DIR: /run/pipewire
+      SMOKE_CAMERA_FRAME: ${SMOKE_CAMERA_FRAME:?Base64-encode smoke/camera.jpg}
+    volumes:
+      - type: volume
+        source: pipewire-runtime
+        target: /run/pipewire
+        read_only: true
+        volume:
+          nocopy: true
+    # The source must start before the camera service's extended healthcheck passes.
+    depends_on:
+      camera-service:
+        condition: service_started
+    healthcheck:
+      disable: true
+    entrypoint: ["/bin/sh", "-ec"]
+    command:
+      - |
+        printf '%s' "$$SMOKE_CAMERA_FRAME" | base64 -d > /tmp/camera.jpg
+        attempts=0
+        until [ -S "$$XDG_RUNTIME_DIR/pipewire-0" ] && [ -w "$$XDG_RUNTIME_DIR/pipewire-0" ]; do
+          attempts=$$((attempts + 1))
+          if [ "$$attempts" -ge 60 ]; then
+            echo "Timed out waiting for the camera service's PipeWire socket" >&2
+            exit 1
+          fi
+          sleep 1
+        done
+        exec gst-launch-1.0 -v \
+          multifilesrc location=/tmp/camera.jpg \
+          ! jpegdec \
+          ! imagefreeze \
+          ! videoconvert \
+          ! videoscale \
+          ! video/x-raw,format=YUY2,width=640,height=480,framerate=30/1 \
+          ! pipewiresink mode=provide async=false use-bufferpool=false \
+              client-name=gstreamer-test-source \
+              stream-properties="props,media.class=(string)Video/Source,node.name=(string)gstreamer-test-source,node.description=(string)GStreamerTestSource"

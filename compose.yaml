@@ -51,7 +51,12 @@ services:
     environment:
       XDG_RUNTIME_DIR: /run/pipewire
     volumes:
-      - pipewire-runtime:/run/pipewire:ro
+      - type: volume
+        source: pipewire-runtime
+        target: /run/pipewire
+        read_only: true
+        volume:
+          nocopy: true
       - type: image
         source: *model-image
         target: /work/config/models

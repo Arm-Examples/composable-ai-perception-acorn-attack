@@ -4,6 +4,9 @@ on:
   push:
     branches: [main]
   pull_request:
+  schedule:
+    - cron: "23 6 * * 1"
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -14,6 +17,7 @@ concurrency:
 
 jobs:
   prek:
+    if: github.event_name == 'push' || github.event_name == 'pull_request'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -40,3 +44,115 @@ jobs:
         with:
           prek-version: "0.4.13"
           extra-args: "--all-files --stage pre-commit"
+
+  smoke:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: read
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: "22.22.3"
+          cache: npm
+          cache-dependency-path: smoke/package-lock.json
+
+      - name: Install latest Topo
+        run: |
+          SMOKE_ARTIFACTS="$RUNNER_TEMP/smoke-artifacts"
+          {
+            echo "SMOKE_PROJECT=$RUNNER_TEMP/acorn-attack"
+            echo "SMOKE_COMPOSE=$RUNNER_TEMP/acorn-attack/smoke.compose.yaml"
+            echo "SMOKE_ARTIFACTS=$SMOKE_ARTIFACTS"
+          } >> "$GITHUB_ENV"
+          mkdir -p "$SMOKE_ARTIFACTS"
+          curl -fsSL https://raw.githubusercontent.com/arm/topo/refs/heads/main/scripts/install.sh \
+            -o "$RUNNER_TEMP/install-topo.sh"
+          sh "$RUNNER_TEMP/install-topo.sh"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          "$HOME/.local/bin/topo" --version | tee "$SMOKE_ARTIFACTS/topo-version.txt"
+
+      - name: Clone application with default configuration
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh auth setup-git
+          topo clone https://github.com/Arm-Examples/cairn-perception-acorn-attack \
+            "$SMOKE_PROJECT" 2>&1 | tee "$SMOKE_ARTIFACTS/clone.log"
+          git -C "$SMOKE_PROJECT" rev-parse HEAD | tee "$SMOKE_ARTIFACTS/revision.txt"
+
+      - name: Prepare camera override
+        id: prepare
+        working-directory: ${{ env.SMOKE_PROJECT }}
+        env:
+          TOPO_TARGET_HOSTNAME: localhost
+        run: |
+          SMOKE_PERCEPTION_IMAGE="$(
+            docker compose -f compose.yaml config --no-env-resolution --format json \
+              | jq -er '.services["perception-service"].image'
+          )"
+          SMOKE_CAMERA_FRAME="$(base64 -w0 "$GITHUB_WORKSPACE/smoke/camera.jpg")"
+          export SMOKE_PERCEPTION_IMAGE SMOKE_CAMERA_FRAME
+          # Topo takes one -f. Keep secret environment sources, not their values.
+          docker compose -f compose.yaml -f "$GITHUB_WORKSPACE/smoke/compose.yaml" \
+            config --no-env-resolution --output "$SMOKE_COMPOSE"
+
+      - name: Install browser harness
+        working-directory: smoke
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Authenticate Cairn image pulls
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_USER: ${{ github.actor }}
+        run: printf '%s' "$GH_TOKEN" | docker login ghcr.io -u "$GH_USER" --password-stdin
+
+      - name: Check local deployment target
+        run: |
+          topo health --target localhost --output json | tee "$SMOKE_ARTIFACTS/health.json" \
+            | jq -e 'all(.. | objects; .status != "error")'
+
+      - name: Deploy through Topo
+        env:
+          ARTIFACTORY_TOKEN: ${{ secrets.ARTIFACTORY_TOKEN }}
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        working-directory: ${{ env.SMOKE_PROJECT }}
+        run: |
+          topo deploy --target localhost -f "$SMOKE_COMPOSE" \
+            2>&1 | tee "$SMOKE_ARTIFACTS/deploy.log"
+
+      - name: Play the game with real inference
+        working-directory: smoke
+        run: npm test
+
+      - name: Capture service logs
+        if: always() && steps.prepare.outcome == 'success'
+        run: |
+          docker compose -f "$SMOKE_COMPOSE" logs --no-color \
+            > "$SMOKE_ARTIFACTS/compose.log" 2>&1
+
+      - name: Stop deployment through Topo
+        if: always() && steps.prepare.outcome == 'success'
+        timeout-minutes: 2
+        run: |
+          topo stop --target localhost -f "$SMOKE_COMPOSE" \
+            2>&1 | tee "$SMOKE_ARTIFACTS/stop.log"
+
+      - name: Upload smoke evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: latest-topo-smoke
+          path: |
+            ${{ env.SMOKE_ARTIFACTS }}
+            smoke/test-results/
+          retention-days: 7

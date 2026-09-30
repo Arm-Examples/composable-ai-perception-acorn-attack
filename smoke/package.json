@@ -1,0 +1,12 @@
+{
+  "name": "cairn-perception-acorn-attack-smoke",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "playwright test game.spec.ts --workers=1 --trace=retain-on-failure"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "@types/node": "22.20.4"
+  }
+}
