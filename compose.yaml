@@ -48,8 +48,8 @@ services:
     build:
       context: .
       args:
-        OPK_HF_DETECTION_MODEL: Arm/ultraface-rfb-320-onnx-raspberry
-        DETECTION_LABEL: ""
+        OPK_HF_DETECTION_MODEL: ${OPK_HF_DETECTION_MODEL:-Arm/ultraface-rfb-320-onnx-raspberry}
+        DETECTION_LABEL: ${DETECTION_LABEL:-}
     network_mode: host
     depends_on:
       camera-service:
